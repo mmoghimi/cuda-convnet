@@ -1,0 +1,9 @@
+*.pyc
+*.so
+*.swp
+tmp
+bin
+obj
+cifar-10-py-colmajor
+r
+b
