@@ -26,17 +26,21 @@ from data import *
 import numpy.random as nr
 import numpy as n
 import random as r
+INPUT_DIM = 32
 
 class CIFARDataProvider(LabeledMemoryDataProvider):
     def __init__(self, data_dir, batch_range, init_epoch=1, init_batchnum=None, dp_params={}, test=False):
         LabeledMemoryDataProvider.__init__(self, data_dir, batch_range, init_epoch, init_batchnum, dp_params, test)
         self.data_mean = self.batch_meta['data_mean']
         self.num_colors = 3
-        self.img_size = 256
+        self.img_size = INPUT_DIM
         # Subtract the mean from the data and make sure that both data and
         # labels are in single-precision floating point.
         for d in self.data_dic:
             # This converts the data matrix to single precision and makes sure that it is C-ordered
+            print d['data'].shape
+            print self.data_mean.shape
+
             d['data'] = n.require((d['data'] - self.data_mean), dtype=n.single, requirements='C')
             d['labels'] = n.require(d['labels'].reshape((1, d['data'].shape[1])), dtype=n.single, requirements='C')
 
@@ -60,7 +64,7 @@ class CroppedCIFARDataProvider(LabeledMemoryDataProvider):
     def __init__(self, data_dir, batch_range=None, init_epoch=1, init_batchnum=None, dp_params=None, test=False):
         LabeledMemoryDataProvider.__init__(self, data_dir, batch_range, init_epoch, init_batchnum, dp_params, test)
 
-        self.input_dim = 256 #32
+        self.input_dim = INPUT_DIM
 
         self.border_size = dp_params['crop_border']
         self.inner_size = self.input_dim - self.border_size*2
@@ -68,18 +72,39 @@ class CroppedCIFARDataProvider(LabeledMemoryDataProvider):
         self.num_views = 5*2
         self.data_mult = self.num_views if self.multiview else 1
         self.num_colors = 3
-        
+
         for d in self.data_dic:
             d['data'] = n.require(d['data'], requirements='C')
             d['labels'] = n.require(n.tile(d['labels'].reshape((1, d['data'].shape[1])), (1, self.data_mult)), requirements='C')
         
-        self.cropped_data = [n.zeros((self.get_data_dims(), self.data_dic[0]['data'].shape[1]*self.data_mult), dtype=n.single) for x in xrange(2)]
+        if self.curr_batchnum >= 0:
+          self.cropped_data = [n.zeros((self.get_data_dims(), self.data_dic[0]['data'].shape[1]*self.data_mult), dtype=n.single) for x in xrange(2)]
 
         self.batches_generated = 0
         self.data_mean = self.batch_meta['data_mean'].reshape((3,self.input_dim,self.input_dim))[:,self.border_size:self.border_size+self.inner_size,self.border_size:self.border_size+self.inner_size].reshape((self.get_data_dims(), 1))
 
+    def crop_resize_image(image_address):
+      im = np.zeros((IMAGE_SIZE*IMAGE_SIZE*3))
+      try:
+        im = Image.open(image_address)
+        im = im.resize((IMAGE_SIZE, IMAGE_SIZE))
+        im = np.asarray(im)
+        np.swapaxes(im, 0, 2)
+        im = im.reshape((IMAGE_SIZE * IMAGE_SIZE* 3))
+      except Exception as e:
+        print e  
+      return im
+
     def get_next_batch(self):
-        epoch, batchnum, datadic = LabeledMemoryDataProvider.get_next_batch(self)
+        if self.curr_batchnum == -1:
+          epoch = 1
+          batchnum = -1
+          datadic['labels'] = [0]
+          self.query_image = "./ucsdlogo.jpg"
+          im = crop_resize_image(self.query_image)
+          datadic['data'] = im
+        else:
+          epoch, batchnum, datadic = LabeledMemoryDataProvider.get_next_batch(self)
 
         cropped = self.cropped_data[self.batches_generated % 2]
 
@@ -138,3 +163,10 @@ class DummyConvNetDataProvider(LabeledDummyDataProvider):
     # Returns the dimensionality of the two data matrices returned by get_next_batch
     def get_data_dims(self, idx=0):
         return self.batch_meta['num_vis'] if idx == 0 else 1
+
+class ImageNetDataProvider(LabeledDataProvider):
+    def __init__(self, data_dir, batch_range=None, init_epoch=1, init_batchnum=None, dp_params={}, test=False):
+        LabeledDataProvider.__init__(self, data_dir, batch_range, init_epoch, init_batchnum, dp_params, test)
+
+    def get_next_batch(self):
+      pass

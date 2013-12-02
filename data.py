@@ -208,6 +208,8 @@ class LabeledMemoryDataProvider(LabeledDataProvider):
         LabeledDataProvider.__init__(self, data_dir, batch_range, init_epoch, init_batchnum, dp_params, test)
         self.data_dic = []
         for i in batch_range:
+            if i < 0:
+              continue
             self.data_dic += [unpickle(self.get_data_file_name(i))]
             self.data_dic[-1]["labels"] = n.c_[n.require(self.data_dic[-1]['labels'], dtype=n.single)]
             
